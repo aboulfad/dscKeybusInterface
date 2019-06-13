@@ -20,13 +20,12 @@
 
 #include <Arduino.h>
 
-
 #if defined(__AVR__)
 const byte dscPartitions = 4;   // Maximum number of partitions - requires 19 bytes of memory per partition
 const byte dscZones = 4;        // Maximum number of zone groups, 8 zones per group - requires 6 bytes of memory per zone group
 const byte dscBufferSize = 10;  // Number of commands to buffer if the sketch is busy - requires dscReadSize + 2 bytes of memory per command
 #elif defined(ESP8266)
-const byte dscPartitions = 8;
+const byte dscPartitions = 2;
 const byte dscZones = 8;
 const byte dscBufferSize = 50;
 #endif
@@ -42,6 +41,7 @@ class dscKeybusInterface {
     dscKeybusInterface(byte setClockPin, byte setReadPin, byte setWritePin = 255);
 
     void begin(Stream &_stream = Serial);             // Initializes the stream output to Serial by default
+    void trace(PGM_P format, ...);
     bool handlePanel();                               // Returns true if valid panel data is available
     bool handleModule();                              // Returns true if valid keypad or module data is available
     static volatile bool writeReady;                  // True if the library is ready to write a key
