@@ -20,7 +20,6 @@
 
 #include <Arduino.h>
 
-
 #if defined(__AVR__)
 const byte dscPartitions = 4;   // Maximum number of partitions - requires 19 bytes of memory per partition
 const byte dscZones = 4;        // Maximum number of zone groups, 8 zones per group - requires 6 bytes of memory per zone group
@@ -48,6 +47,10 @@ class dscKeybusInterface {
     void resetStatus();                               // Resets the state of all status components as changed for sketches to get the current status
 
     // Write
+    void trace(PGM_P format, ...);
+    bool handlePanel();                               // Returns true if valid panel data is available
+    bool handleModule();                              // Returns true if valid keypad or module data is available
+    static volatile bool writeReady;                  // True if the library is ready to write a key
     void write(const char receivedKey);               // Writes a single key
     void write(const char * receivedKeys);            // Writes multiple keys from a char array
     static byte writePartition;                       // Set to a partition number for virtual keypad
