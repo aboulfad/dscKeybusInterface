@@ -1,6 +1,8 @@
 /*
     DSC Keybus Interface
 
+    https://github.com/taligentx/dscKeybusInterface
+
     This library is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
@@ -51,7 +53,6 @@ class dscKeybusInterface {
     void write(const char receivedKey);               // Writes a single key
     void write(const char * receivedKeys);            // Writes multiple keys from a char array
     static byte writePartition;                       // Set to a partition number for virtual keypad
-    static volatile bool writeReady;                  // True if the library is ready to write a key
 
     // Prints output to the stream interface set in begin()
     void printPanelBinary(bool printSpaces = true);   // Includes spaces between bytes by default
@@ -98,8 +99,9 @@ class dscKeybusInterface {
     bool alarmZonesStatusChanged;
     byte alarmZones[dscZones], alarmZonesChanged[dscZones];  // Zone alarm status is stored in an array using 1 bit per zone, up to 64 zones
 
-    // Panel and keypad data is stored in an array: command [0], stop bit by itself [1], followed by the remaining
-    // data.  panelData[] and moduleData[] can be accessed directly within the sketch.
+    // panelData[] and moduleData[] store panel and keypad data in an array: command [0], stop bit by itself [1],
+    // followed by the remaining data.  These can be accessed directly in the sketch to get data that is not already
+    // tracked in the library.  See dscKeybusPrintData-RTOS.c for the currently known DSC commands and data.
     //
     // panelData[] example:
     //   Byte 0     Byte 2   Byte 3   Byte 4   Byte 5
@@ -108,8 +110,9 @@ class dscKeybusInterface {
     static byte panelData[dscReadSize];
     static volatile byte moduleData[dscReadSize];
 
-    // These contain the current status message and LED state for each partition.  See printPanelLights() and printPanelMessages()
-    // in dscKeybusPrintData.cpp to see how this data translates to the status message and LED status.
+    // status[] and lights[] store the current status message and LED state for each partition.  These can be accessed
+    // directly in the sketch to get data that is not already tracked in the library.  See printPanelMessages() and
+    // printPanelLights() in dscKeybusPrintData.cpp to see how this data translates to the status message and LED status.
     byte status[dscPartitions];
     byte lights[dscPartitions];
 
@@ -122,7 +125,9 @@ class dscKeybusInterface {
     // Timer interrupt function to capture data - declared as public for use by AVR Timer2
     static void dscDataInterrupt();
 
-    bool handlePanel();  // Deprecated, relabeled to loop()
+    // Deprecated
+    bool handlePanel();               // Returns true if valid panel data is available.  Relabeled to loop()
+    static volatile bool writeReady;  // True if the library is ready to write a key.  To be moved to private
 
   private:
 

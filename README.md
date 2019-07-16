@@ -1,21 +1,20 @@
 # DSC Keybus Interface
-This library directly interfaces Arduino, esp8266, and esp32 microcontrollers to [DSC PowerSeries](http://www.dsc.com/dsc-security-products/g/PowerSeries/4) security systems for integration with home automation, notifications on alarm events, and usage as a virtual keypad.  This enables homes and offices with existing DSC security systems (of which millions have been installed over the decades) to connect with modern devices and software, while retaining the features and reliability of a hardwired system for under $5USD in components.
+This library directly interfaces Arduino, esp8266, and esp32 microcontrollers to [DSC PowerSeries](http://www.dsc.com/dsc-security-products/g/PowerSeries/4) security systems for integration with home automation, notifications on alarm events, and usage as a virtual keypad.  This enables existing DSC security system installations to retain the features and reliability of a hardwired system while integrating with modern devices and software for under $5USD in components.
 
 The built-in examples can be used as-is or as a base to adapt to other uses:
-* Home automation: [Home Assistant](https://www.home-assistant.io), [Apple HomeKit & Siri](https://www.apple.com/ios/home/), [Athom Homey](https://www.athom.com/en/)
+* Home automation: [Home Assistant](https://www.home-assistant.io), [Apple HomeKit & Siri](https://www.apple.com/ios/home/), [OpenHAB](https://www.openhab.org), [Athom Homey](https://www.athom.com/en/)
 * Notifications: [PushBullet](https://www.pushbullet.com), [Twilio SMS](https://www.twilio.com), MQTT, E-mail
-* Virtual keypad: Web interface, [Blynk](https://www.blynk.cc) mobile app
+* Virtual keypad: Web interface, [Blynk](https://www.blynk.cc) mobile app, installer code unlocking
 
-## Screenshots
+This library has also been ported to [esp-open-rtos](https://github.com/SuperHouse/esp-open-rtos) - this enables native esp8266 integration with [Apple HomeKit & Siri](https://www.apple.com/ios/home/) as a standalone accessory using [esp-homekit](https://github.com/maximkulkin/esp-homekit) - see the [dscKeybusInterface-RTOS](https://github.com/taligentx/dscKeybusInterface-RTOS) repository for details.
+
+Screenshots:
 * [Apple Home & Siri](https://www.apple.com/ios/home/):  
   ![HomeKit](https://user-images.githubusercontent.com/12835671/39588413-5a99099a-4ec1-11e8-9a2e-e332fa2d6379.jpg)
-
 * [Home Assistant](https://www.home-assistant.io):  
   ![HomeAssistant](https://user-images.githubusercontent.com/12835671/42108879-7362ccf6-7ba1-11e8-902e-d6cb25483a00.png)
-
 * [Blynk](https://www.blynk.cc) app virtual keypad:  
   ![dsc-blynk](https://user-images.githubusercontent.com/12835671/42364975-add27c94-80c2-11e8-8a55-9d6d168ff8c1.png)
-
 * Web virtual keypad:  
   ![dsc-web](https://user-images.githubusercontent.com/12835671/57727601-8cebb280-7657-11e9-9404-dbdaeed9adae.png)
 
@@ -23,7 +22,7 @@ The built-in examples can be used as-is or as a base to adapt to other uses:
 **I Had**: _A DSC security system not being monitored by a third-party service._  
 **I Wanted**: _Notification if the alarm triggered._
 
-I was interested in finding a solution that directly accessed the pair of data lines that DSC uses for their proprietary Keybus protocol to send data between the panel, keypads, and other modules.  Tapping into the data lines is an ideal task for a microcontroller and also presented an opportunity to work with the [Arduino](https://www.arduino.cc) platform.
+I was interested in finding a solution that directly accessed the pair of data lines that DSC uses for their proprietary Keybus protocol to send data between the panel, keypads, and other modules.  Tapping into the data lines is an ideal task for a microcontroller and also presented an opportunity to work with the [Arduino](https://www.arduino.cc) and [FreeRTOS](https://www.freertos.org) (via [esp-open-rtos](https://github.com/SuperHouse/esp-open-rtos)) platforms.
 
 While there has been excellent [discussion about the DSC Keybus protocol](https://www.avrfreaks.net/forum/dsc-keybus-protocol) and a few existing projects, there were major issues that remained unsolved:
 * Error-prone Keybus data capture.
@@ -39,7 +38,9 @@ Poking around with a logic analyzer and oscilloscope revealed that the errors ca
 * Monitor zones status:
   - Zones open/closed, zones in alarm
 * Monitor system status:
-  - Ready, trouble, AC power, battery
+  - Ready, trouble, time, AC power, battery
+* Panel time - retrieve current panel date/time and set a new date/time
+* Panel installer code unlocking - finds a valid 4-digit installer code
 * Virtual keypad:
   - Send keys to the panel for any partition
 * Direct Keybus interface:
@@ -50,15 +51,15 @@ Poking around with a logic analyzer and oscilloscope revealed that the errors ca
   - All PowerSeries series are supported, please [post an issue](https://github.com/taligentx/dscKeybusInterface/issues) if you have a different panel (PC5020, etc) and have tested the interface to update this list.
   - Rebranded DSC PowerSeries (such as some ADT systems) should also work with this interface.
 * Supported microcontrollers:
-    - [Arduino](https://www.arduino.cc/en/Main/Products): Uno, Mega, Leonardo, Mini, Micro, Nano, Pro, Pro Mini
+    - [Arduino](https://www.arduino.cc/en/Main/Products):
+      * Boards: Uno, Mega, Leonardo, Mini, Micro, Nano, Pro, Pro Mini
       * ATmega328P, ATmega2560, and ATmega32U4-based boards at 16Mhz
-    - esp8266: NodeMCU v2 or v3, Wemos D1 Mini, etc.    
-      * Includes [Arduino framework support](https://github.com/esp8266/Arduino), integrated WiFi, and improved specs for ~$3USD shipped.
-      * NodeMCU modules are a good choice as they can be powered directly from the DSC panel, the Wemos D1 Mini requires an additional 5v voltage regulator to handle the 12v+ DSC panel power.
-      * Supports running at 160MHz - this especially helps sketches using TLS connections
-    - esp32: NodeMCU ESP-32S, Doit ESP32 Devkit v1, Wemos Lolin D32, etc (experimental support)
+    - esp8266:
+      * Development boards: NodeMCU v2 or v3, Wemos D1 Mini, etc.
+      * Includes [Arduino framework support](https://github.com/esp8266/Arduino) and WiFi for ~$3USD shipped.
+    - esp32 (experimental support):
+      * Development boards: NodeMCU ESP-32S, Doit ESP32 Devkit v1, Wemos Lolin D32, etc.
       * Includes [Arduino framework support](https://github.com/espressif/arduino-esp32), dual cores, WiFi, and Bluetooth for ~$5USD shipped.
-      * Note that different resistor values are used as the GPIO pins are 3.3v-only.
 * Designed for reliable data decoding and performance:
   - Pin change and timer interrupts for accurate data capture timing
   - Data buffering: helps prevent lost Keybus data if the sketch is busy
@@ -66,17 +67,19 @@ Poking around with a logic analyzer and oscilloscope revealed that the errors ca
   - Non-blocking code: Allows sketches to run as quickly as possible without using `delay` or `delayMicroseconds`
 * Unsupported security systems:
   - DSC Classic series ([PC1500, etc](https://www.dsc.com/?n=enduser&o=identify)) use a different data protocol, though support is possible.
-  - DSC Neo series use a higher speed encrypted data protocol (Corbus) that is not possible to support.
+  - DSC Neo series use a higher speed encrypted data protocol (Corbus) that is not currently possible to support.
   - Honeywell, Ademco, and other brands (that are not rebranded DSC systems) use different protocols and are not supported.
-* Potential future features (pending [sufficient interest](https://github.com/taligentx/dscKeybusInterface/issues)):
+* Possible features (PRs welcome!):
   - Virtual zone expander: Add new zones to the DSC panel emulated by the microcontroller based on GPIO pin states or software-based states.  Requires decoding the DSC PC5108 zone expander data.
-  - Installer code unlocking: Requires brute force checking all possible codes and a workaround if keypad lockout is enabled (possibly automatically power-cycling the panel with a relay to skip the lockout time).
+  - [DSC IT-100](https://cms.dsc.com/download.php?t=1&id=16238) emulation
   - DSC Classic series support: This protocol is [already decoded](https://github.com/dougkpowers/pc1550-interface), use with this library would require major changes.
 
 ## Release notes
-* 1.3
+* develop
+  - New: [OpenHAB](https://www.openhab.org) integration example sketch using MQTT
+  - New: `Unlocker` example sketch to determine the panel installer code
   - New: esp32 microcontroller support (experimental)
-  - New: Added functionality for sketches and updated examples
+  - New: Added functionality for sketches, updated example sketches
       * `ready` tracks partition ready status
       * `setTime()` sets the panel date and time
       * `timestampChanged` tracks when the panel sends a timestamp
@@ -87,7 +90,6 @@ Poking around with a logic analyzer and oscilloscope revealed that the errors ca
       * `appendPartition()` in example sketches simplifies adding partition numbers to messages
   - New: Handle `*1 bypass/re-activate` used to change stay/away mode while armed
   - Updated: Expanded partition state processing to improve panel state detection at startup
-  - Updated: Removed checking for exit delay in Homebridge sketches
   - Deprecated: `handlePanel()` is now `loop()`
   - Deprecated: `writeReady` has been moved into the library and is no longer needed in the sketch.
   - Bugfix: Resolved `Homebridge-MQTT` sketch not handling HomeKit target states
@@ -154,6 +156,7 @@ The included examples demonstrate how to use the library and can be used as-is o
   * Partitions fire alarm
   * Zones open/closed
   * Zones in alarm
+  * Get/set panel date and time
   * Keypad fire/auxiliary/panic alarm
   * Panel AC power
   * Panel battery
@@ -163,6 +166,8 @@ The included examples demonstrate how to use the library and can be used as-is o
 * **Homebridge-MQTT**: Integrates with Apple HomeKit, including the iOS Home app and Siri.  This uses MQTT to interface with [Homebridge](https://github.com/nfarina/homebridge) and [homebridge-mqttthing](https://github.com/arachnetech/homebridge-mqttthing) and demonstrates using the armed and alarm states for the HomeKit securitySystem object, zone states for the contactSensor objects, and fire alarm states for the smokeSensor object.
 
 * **HomeAssistant-MQTT**: Integrates with [Home Assistant](https://www.home-assistant.io) via MQTT.  This uses the armed and alarm states for the HomeAssistant [Alarm Control Panel](https://www.home-assistant.io/components/alarm_control_panel.mqtt) component, as well as zone, fire alarm, and trouble states for the [Binary Sensor](https://www.home-assistant.io/components/binary_sensor.mqtt) component.
+
+* **OpenHAB-MQTT**: Integrates with [OpenHAB](https://www.openhab.org) via MQTT.  This uses MQTT to interface with OpenHAB and the [MQTT binding](https://www.openhab.org/addons/bindings/mqtt/) and demonstrates using the armed states as OpenHAB switches, and the alarm and zones states as OpenHAB contacts.  Also see https://github.com/jimtng/dscalarm-mqtt for an integration using the Homie convention for OpenHAB's Homie MQTT component.
 
 * **Homey**: Integrates with [Athom Homey](https://www.athom.com/en/) and the [Homeyduino](https://github.com/athombv/homey-arduino-library/) library, including armed, alarm, and fire states (currently limited to one partition), and zone states.  Thanks to [MagnusPer](https://github.com/MagnusPer) for contributing this example!
 
@@ -186,6 +191,8 @@ The included examples demonstrate how to use the library and can be used as-is o
 
 * **VirtualKeypad-Web** (esp8266-only): Provides a virtual keypad web interface, using the esp8266 itself as a standalone web server.  This example uses the [ESP Async Web Server](https://github.com/me-no-dev/ESPAsyncWebServer) and Websockets - thanks to [Elektrik1](https://github.com/Elektrik1) for contributing this example!
 
+* **Unlocker**: Checks all possible 4-digit installer codes until a valid code is found, including handling keypad lockout if enabled.  The valid code is output to serial as well as repeatedly flashed with the built-in LED.
+
 * **KeybusReader**: Decodes and prints data from the Keybus to a serial interface, including reading from serial for the virtual keypad.  This can be used to help decode the Keybus protocol and is also handy as a troubleshooting tool to verify that data is displayed without errors.
 
   See [`src/dscKeybusPrintData.cpp`](https://github.com/taligentx/dscKeybusInterface/blob/master/src/dscKeybusPrintData.cpp) for all currently known Keybus protocol commands and messages.  Issues and pull requests with additions/corrections are welcome!
@@ -198,27 +205,24 @@ The included examples demonstrate how to use the library and can be used as-is o
 ```
 DSC Aux(+) ---+--- Arduino Vin pin
               |
-              +--- esp8266 NodeMCU Vin pin
-              |
-              +--- 5v voltage regulator --- esp8266 Wemos D1 Mini 5v pin
-              |
-              +--- 5v voltage regulator --- esp32 dev board 5v pin
+              +--- 5v voltage regulator --- esp8266 NodeMCU / Wemos D1 Mini 5v pin
+                                            esp32 development board 5v pin
 
 DSC Aux(-) --- Arduino/esp8266/esp32 Ground
 
-                                       +--- dscClockPin (Arduino Uno: 2,3 / esp8266: D1,D2,D8)
+                    Arduino/esp8266    +--- dscClockPin (Arduino Uno: 2,3 / esp8266: D1,D2,D8)
 DSC Yellow ---+--- 15k ohm resistor ---|
               |                        +--- 10k ohm resistor --- Ground
               |
-              |                        +--- dscClockPin (esp32: 4,13,16-39)
+              |         esp32          +--- dscClockPin (esp32: 4,13,16-39)
               +--- 33k ohm resistor ---|
                                        +--- 10k ohm resistor --- Ground
 
-                                       +--- dscReadPin (Arduino Uno: 2-12 / esp8266: D1,D2,D8)
+                    Arduino/esp8266    +--- dscReadPin (Arduino Uno: 2-12 / esp8266: D1,D2,D8)
 DSC Green ----+--- 15k ohm resistor ---|
               |                        +--- 10k ohm resistor --- Ground
               |
-              |                        +--- dscReadPin (esp32: 4,13,16-39)
+              |         esp32          +--- dscReadPin (esp32: 4,13,16-39)
               +--- 33k ohm resistor ---|
                                        +--- 10k ohm resistor --- Ground
  
@@ -228,15 +232,20 @@ DSC Green ---- NPN collector --\
       Ground --- NPN emitter --/
 ```
 
-## Wiring Notes
-* The DSC Keybus operates at ~12.6v, a pair of resistors per data line will bring this down to an appropriate voltage for both Arduino and esp8266.  The esp32 requires lower voltage and uses different resistor values.
-* Arduino: connect the DSC Yellow (Clock) line to a [hardware interrupt pin](https://www.arduino.cc/reference/en/language/functions/external-interrupts/attachinterrupt/) - for the Uno, these are pins 2 and 3.  The DSC Green (Data) line can be connected to any of the remaining digital pins 2-12.
-* esp8266: connect the DSC lines to GPIO pins that are normally low to avoid putting spurious data on the Keybus: D1 (GPIO5), D2 (GPIO4) and D8 (GPIO15).
-* esp32: connect the DSC lines to GPIO pins that do not send signals at boot: 4, 13, 16-39.  For virtual keypad, pins 34-39 are input only and cannot be used.
+* The DSC Keybus operates at ~12.6v, a pair of resistors per data line will bring this down to an appropriate voltage for each microcontroller.
+    * Arduino: connect the DSC Yellow (Clock) line to a [hardware interrupt pin](https://www.arduino.cc/reference/en/language/functions/external-interrupts/attachinterrupt/) - for the Uno, these are pins 2 or 3.  The DSC Green (Data) line can be connected to any of the remaining digital pins 2-12.
+    * esp8266: connect the DSC lines to GPIO pins that are normally low to avoid putting spurious data on the Keybus: D1 (GPIO5), D2 (GPIO4) and D8 (GPIO15).
+    * esp32: connect the DSC lines to GPIO pins that do not send signals at boot: 4, 13, 16-39.  For virtual keypad, use pins 4, 13, 16-33 - pins 34-39 are input only and cannot be used.
 * Virtual keypad uses an NPN transistor and a resistor to write to the Keybus.  Most small signal NPN transistors should be suitable, for example:
   * 2N3904
   * BC547, BC548, BC549
   * That random NPN at the bottom of your parts bin (my choice)
+* Power:
+  * Arduino boards can be powered directly from the DSC panel
+  * esp8266/esp32 development boards should use a 5v voltage regulator:
+    - LM2596-based step-down buck converter modules are reasonably efficient and commonly available for under $1USD shipped (eBay, Aliexpress, etc).
+    - MP2307-based step-down buck converter modules (aka Mini360) are also available but some versions run hot with an efficiency nearly as poor as linear regulators.
+    - Linear voltage regulators (LM7805, etc) will work but are inefficient and run hot - these may need a heatsink.
 * Connections should be soldered, breadboards can cause issues.
 
 ## Virtual keypad

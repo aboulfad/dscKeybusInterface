@@ -38,9 +38,7 @@
  *    V61 - Zone 1 ... V124 - Zone 64
  *
  *  Wiring:
- *      DSC Aux(+) ---+--- esp8266 NodeMCU Vin pin
- *                    |
- *                    +--- 5v voltage regulator --- esp8266 Wemos D1 Mini 5v pin
+ *      DSC Aux(+) --- 5v voltage regulator --- esp8266 development board 5v pin (NodeMCU, Wemos)
  *
  *      DSC Aux(-) --- esp8266 Ground
  *
@@ -88,10 +86,13 @@ int blynkPort = 8080;        // Blynk local server port
 #define dscClockPin D1  // esp8266: D1, D2, D8 (GPIO 5, 4, 15)
 #define dscReadPin D2   // esp8266: D1, D2, D8 (GPIO 5, 4, 15)
 #define dscWritePin D8  // esp8266: D1, D2, D8 (GPIO 5, 4, 15)
+
+// Initialize components
 dscKeybusInterface dsc(dscClockPin, dscReadPin, dscWritePin);
-
 bool wifiConnected = false;
-
+bool partitionChanged;
+byte viewPartition = 1;
+const char* lcdPartition = "Partition ";
 WidgetLCD lcd(V40);
 WidgetLED ledReady(V50);
 WidgetLED ledArmed(V51);
@@ -164,10 +165,6 @@ WidgetLED ledZone61(V121);
 WidgetLED ledZone62(V122);
 WidgetLED ledZone63(V123);
 WidgetLED ledZone64(V124);
-
-bool partitionChanged;
-byte viewPartition = 1;
-const char* lcdPartition = "Partition ";
 
 
 void setup() {

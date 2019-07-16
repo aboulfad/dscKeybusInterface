@@ -1,6 +1,8 @@
 /*
     DSC Keybus Interface
 
+    https://github.com/taligentx/dscKeybusInterface
+
     This library is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
@@ -128,6 +130,19 @@ void dscKeybusInterface::stop() {
 
   // Disables the Keybus clock pin interrupt
   detachInterrupt(digitalPinToInterrupt(dscClockPin));
+
+  // Resets the panel capture data and counters
+  panelBufferLength = 0;
+  for (byte i = 0; i < dscReadSize; i++) isrPanelData[i] = 0;
+  isrPanelBitTotal = 0;
+  isrPanelBitCount = 0;
+  isrPanelByteCount = 0;
+
+  // Resets the keypad and module capture data and counters
+  for (byte i = 0; i < dscReadSize; i++) isrModuleData[i] = 0;
+  isrModuleBitTotal = 0;
+  isrModuleBitCount = 0;
+  isrModuleByteCount = 0;
 }
 
 
@@ -521,7 +536,7 @@ void dscKeybusInterface::setWriteKey(const char receivedKey) {
   }
 
   // Sets the binary to write for virtual keypad keys
-  if (writeReady && millis() - previousTime > 500) {
+  if (writeReady && (millis() - previousTime > 500 || millis() <= 500)) {
     bool validKey = true;
     switch (receivedKey) {
       case '/': setPartition = true; validKey = false; break;
@@ -880,7 +895,7 @@ void IRAM_ATTR dscKeybusInterface::dscDataInterrupt() {
         // Stores new keypad and module data - this data is not buffered
         if (moduleDataDetected) {
           moduleDataDetected = false;
-          moduleDataCaptured = true;  // Sets a flag for handleModules()
+          moduleDataCaptured = true;  // Sets a flag for handleModule()
           for (byte i = 0; i < dscReadSize; i++) moduleData[i] = isrModuleData[i];
           moduleBitCount = isrModuleBitTotal;
           moduleByteCount = isrModuleByteCount;

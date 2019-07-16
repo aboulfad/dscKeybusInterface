@@ -115,9 +115,7 @@ binary_sensor:
  *    Fire alarm restored: "0"
  *
  *  Wiring:
- *      DSC Aux(+) ---+--- esp8266 NodeMCU Vin pin
- *                    |
- *                    +--- 5v voltage regulator --- esp8266 Wemos D1 Mini 5v pin
+ *      DSC Aux(+) --- 5v voltage regulator --- esp8266 development board 5v pin (NodeMCU, Wemos)
  *
  *      DSC Aux(-) --- esp8266 Ground
  *
@@ -168,17 +166,18 @@ const char* mqttStatusTopic = "dsc/Status";
 const char* mqttBirthMessage = "online";
 const char* mqttLwtMessage = "offline";
 const char* mqttSubscribeTopic = "dsc/Set";            // Receives messages to write to the panel
-unsigned long mqttPreviousTime;
-
-WiFiClient wifiClient;
-PubSubClient mqtt(mqttServer, mqttPort, wifiClient);
 
 // Configures the Keybus interface with the specified pins - dscWritePin is optional, leaving it out disables the
 // virtual keypad.
 #define dscClockPin D1  // esp8266: D1, D2, D8 (GPIO 5, 4, 15)
 #define dscReadPin D2   // esp8266: D1, D2, D8 (GPIO 5, 4, 15)
 #define dscWritePin D8  // esp8266: D1, D2, D8 (GPIO 5, 4, 15)
+
+// Initialize components
 dscKeybusInterface dsc(dscClockPin, dscReadPin, dscWritePin);
+WiFiClient wifiClient;
+PubSubClient mqtt(mqttServer, mqttPort, wifiClient);
+unsigned long mqttPreviousTime;
 
 
 void setup() {

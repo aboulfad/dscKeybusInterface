@@ -13,9 +13,7 @@
  *  1.0 - Initial release
  *
  *  Wiring:
- *      DSC Aux(+) ---+--- esp8266 NodeMCU Vin pin
- *                    |
- *                    +--- 5v voltage regulator --- esp8266 Wemos D1 Mini 5v pin
+ *      DSC Aux(+) --- 5v voltage regulator --- esp8266 development board 5v pin (NodeMCU, Wemos)
  *
  *      DSC Aux(-) --- esp8266 Ground
  *
@@ -54,8 +52,9 @@ const char* pushbulletToken = "";  // Set the access token generated in the Push
 // Configures the Keybus interface with the specified pins.
 #define dscClockPin D1  // esp8266: D1, D2, D8 (GPIO 5, 4, 15)
 #define dscReadPin D2   // esp8266: D1, D2, D8 (GPIO 5, 4, 15)
-dscKeybusInterface dsc(dscClockPin, dscReadPin);
 
+// Initialize components
+dscKeybusInterface dsc(dscClockPin, dscReadPin);
 WiFiClientSecure pushClient;
 bool wifiConnected = false;
 

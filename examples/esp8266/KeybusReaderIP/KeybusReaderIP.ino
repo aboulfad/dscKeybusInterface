@@ -1,13 +1,11 @@
 /*
  *  DSC Keybus Reader 1.1 (esp8266)
  *
- *  Decodes and prints data from the Keybus to a TCP connection including virtual keyboard over IP. This is primarily to help decode the Keybus protocol - see the Status examples to put the interface
- *  to productive use.
+ *  Decodes and prints data from the Keybus to a TCP connection including virtual keyboard over IP. This is
+ *  primarily to help decode the Keybus protocol - see the Status example to put the interface to productive use.
  *
  *  Wiring:
- *      DSC Aux(+) ---+--- esp8266 NodeMCU Vin pin
- *                    |
- *                    +--- 5v voltage regulator --- esp8266 Wemos D1 Mini 5v pin
+ *      DSC Aux(+) --- 5v voltage regulator --- esp8266 development board 5v pin (NodeMCU, Wemos)
  *
  *      DSC Aux(-) --- esp8266 Ground
  *
@@ -34,23 +32,25 @@
  *
  *  This example code is in the public domain.
  */
-#include "ESP8266WiFi.h"
+#include <ESP8266WiFi.h>
 #include <dscKeybusInterface.h>
 
-// Adjust settings
+// Settings
 const char* wifiSSID = "";
 const char* wifiPassword = "";
-WiFiServer wifiServer(80);
-WiFiClient client;
-
-bool runOnce = true;
 
 // Configures the Keybus interface with the specified pins - dscWritePin is optional, leaving it out disables the
 // virtual keypad.
 #define dscClockPin D1  // esp8266: D1, D2, D8 (GPIO 5, 4, 15)
 #define dscReadPin D2   // esp8266: D1, D2, D8 (GPIO 5, 4, 15)
 #define dscWritePin D8  // esp8266: D1, D2, D8 (GPIO 5, 4, 15)
+
+// Initialize components
 dscKeybusInterface dsc(dscClockPin, dscReadPin, dscWritePin);
+WiFiServer wifiServer(80);
+WiFiClient client;
+bool runOnce = true;
+
 
 void setup() {
   Serial.begin(115200);
@@ -63,7 +63,7 @@ void setup() {
     delay(250);
     Serial.print(".");
   }
- 
+
   Serial.print("Connected to WiFi. IP:");
   Serial.println(WiFi.localIP());
 
@@ -83,16 +83,16 @@ void setup() {
 
 
 void loop() {
-  
+
   dsc.loop(); //call it to process buffer when client is disconnected
 
-  client = wifiServer.available(); 
+  client = wifiServer.available();
   if (client) {
     while (client.connected()) {
 
       // Once client is connected, tell it is connected (once!)
       if (runOnce) {
-        client.printf("Client connected to dscKeybusReader\n"); 
+        client.printf("Client connected to dscKeybusReader\n");
         runOnce = false;
       }
 
