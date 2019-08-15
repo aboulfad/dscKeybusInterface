@@ -31,7 +31,7 @@ bool dscKeybusInterface::processModuleData;
 byte dscKeybusInterface::panelData[dscReadSize];
 byte dscKeybusInterface::panelByteCount;
 byte dscKeybusInterface::panelBitCount;
-volatile bool dscKeybusInterface::writeReady;
+volatile bool dscKeybusInterface::writeKeyPending;
 volatile byte dscKeybusInterface::moduleData[dscReadSize];
 volatile bool dscKeybusInterface::moduleDataCaptured;
 volatile byte dscKeybusInterface::moduleByteCount;
@@ -68,7 +68,7 @@ dscKeybusInterface::dscKeybusInterface(byte setClockPin, byte setReadPin, byte s
   dscReadPin = setReadPin;
   dscWritePin = setWritePin;
   if (dscWritePin != 255) virtualKeypad = true;
-  writeReady = true;
+  writeReady = false;
   processRedundantData = true;
   displayTrailingBits = false;
   processModuleData = false;
@@ -206,9 +206,16 @@ bool dscKeybusInterface::loop() {
   // Waits at startup for the 0x05 status command or a command with valid CRC data to eliminate spurious data.
   static bool firstClockCycle = true;
   if (firstClockCycle) {
-    if ((validCRC() || panelData[0] == 0x05) && panelData[0] != 0) firstClockCycle = false;
+    if ((validCRC() || panelData[0] == 0x05) && panelData[0] != 0) {
+      firstClockCycle = false;
+      writeReady = true;
+    }
     else return false;
   }
+
+  // Sets writeReady status
+  if (!writeKeyPending && !writeKeysPending) writeReady = true;
+  else writeReady = false;
 
   // Skips redundant data sent constantly while in installer programming
   static byte previousCmd0A[dscReadSize];
@@ -490,24 +497,55 @@ bool dscKeybusInterface::handleModule() {
 
 // Sets up writes for a single key
 void dscKeybusInterface::write(const char receivedKey) {
-  while(!writeReady || writeKeysPending) loop();
+
+  // Loops if a previous write is in progress
+  while(writeKeyPending || writeKeysPending) {
+    loop();
+    #if defined(ESP8266)
+    yield();
+    #endif
+  }
+
   setWriteKey(receivedKey);
 }
 
 
-// Sets up writes if multiple keys are sent as a char array
-void dscKeybusInterface::write(const char * receivedKeys) {
-  while(!writeReady || writeKeysPending) loop();
+// Sets up writes for multiple keys sent as a char array
+void dscKeybusInterface::write(const char *receivedKeys, bool blockingWrite) {
+
+  // Loops if a previous write is in progress
+  while(writeKeyPending || writeKeysPending) {
+    loop();
+    #if defined(ESP8266)
+    yield();
+    #endif
+  }
+
   writeKeysArray = receivedKeys;
-  if (writeKeysArray[0] != '\0') writeKeysPending = true;
-  writeKeys(writeKeysArray);
+
+  if (writeKeysArray[0] != '\0') {
+    writeKeysPending = true;
+    writeReady = false;
+  }
+
+  // Optionally loops until the write is complete
+  if (blockingWrite) {
+    while (writeKeysPending) {
+      writeKeys(writeKeysArray);
+      loop();
+      #if defined(ESP8266)
+      yield();
+      #endif
+    }
+  }
+  else writeKeys(writeKeysArray);
 }
 
 
 // Writes multiple keys from a char array
-void dscKeybusInterface::writeKeys(const char * writeKeysArray) {
+void dscKeybusInterface::writeKeys(const char *writeKeysArray) {
   static byte writeCounter = 0;
-  if (writeKeysPending && writeReady && writeCounter < strlen(writeKeysArray)) {
+  if (!writeKeyPending && writeKeysPending && writeCounter < strlen(writeKeysArray)) {
     if (writeKeysArray[writeCounter] != '\0') {
       setWriteKey(writeKeysArray[writeCounter]);
       writeCounter++;
@@ -536,7 +574,7 @@ void dscKeybusInterface::setWriteKey(const char receivedKey) {
   }
 
   // Sets the binary to write for virtual keypad keys
-  if (writeReady && (millis() - previousTime > 500 || millis() <= 500)) {
+  if (!writeKeyPending && (millis() - previousTime > 500 || millis() <= 500)) {
     bool validKey = true;
     switch (receivedKey) {
       case '/': setPartition = true; validKey = false; break;
@@ -580,8 +618,10 @@ void dscKeybusInterface::setWriteKey(const char receivedKey) {
       }
     }
 
+    // Skips writing to partitions not specified in dscKeybusInterface.h
+    if (dscPartitions < writePartition) return;
+
     // Sets the writing position in dscClockInterrupt() for the currently set partition
-    if (dscPartitions < writePartition) writePartition = 1;
     switch (writePartition) {
       case 1:
       case 5: {
@@ -615,7 +655,10 @@ void dscKeybusInterface::setWriteKey(const char receivedKey) {
     }
 
     if (writeAlarm) previousTime = millis();  // Sets a marker to time writes after keypad alarm keys
-    if (validKey) writeReady = false;         // Sets a flag indicating that a write is pending, cleared by dscClockInterrupt()
+    if (validKey) {
+      writeKeyPending = true;                 // Sets a flag indicating that a write is pending, cleared by dscClockInterrupt()
+      writeReady = false;
+    }
   }
 }
 
@@ -696,7 +739,7 @@ void IRAM_ATTR dscKeybusInterface::dscClockInterrupt() {
       else writeCmd = false;
 
       // Writes a F/A/P alarm key and repeats the key on the next immediate command from the panel (0x1C verification)
-      if ((writeAlarm && !writeReady) || writeRepeat) {
+      if ((writeAlarm && writeKeyPending) || writeRepeat) {
 
         // Writes the first bit by shifting the alarm key data right 7 bits and checking bit 0
         if (isrPanelBitTotal == 1) {
@@ -711,7 +754,7 @@ void IRAM_ATTR dscKeybusInterface::dscClockInterrupt() {
           if (!((writeKey >> (8 - isrPanelBitTotal)) & 0x01)) digitalWrite(dscWritePin, HIGH);
           // Resets counters when the write is complete
           if (isrPanelBitTotal == 8) {
-            writeReady = true;
+            writeKeyPending = false;
             writeStart = false;
             writeAlarm = false;
 
@@ -723,7 +766,7 @@ void IRAM_ATTR dscKeybusInterface::dscClockInterrupt() {
       }
 
       // Writes a regular key unless waiting for a response to the '*' key or the panel is sending a query command
-      else if (!writeReady && !wroteAsterisk && isrPanelByteCount == writeByte && writeCmd) {
+      else if (writeKeyPending && !wroteAsterisk && isrPanelByteCount == writeByte && writeCmd) {
         // Writes the first bit by shifting the key data right 7 bits and checking bit 0
         if (isrPanelBitTotal == writeBit) {
           if (!((writeKey >> 7) & 0x01)) digitalWrite(dscWritePin, HIGH);
@@ -737,7 +780,7 @@ void IRAM_ATTR dscKeybusInterface::dscClockInterrupt() {
           // Resets counters when the write is complete
           if (isrPanelBitTotal == writeBit + 7) {
             if (writeAsterisk) wroteAsterisk = true;  // Delays writing after pressing '*' until the panel is ready
-            else writeReady = true;
+            else writeKeyPending = false;
             writeStart = false;
           }
         }

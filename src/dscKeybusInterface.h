@@ -33,7 +33,13 @@ const byte dscZones = 8;
 const byte dscBufferSize = 50;
 #endif
 
-const byte dscReadSize = 16;   // Maximum bytes of a Keybus command
+// Maximum bytes of a Keybus command
+const byte dscReadSize = 16;
+
+// Exit delay target states
+#define DSC_EXIT_STAY 1
+#define DSC_EXIT_AWAY 2
+#define DSC_EXIT_NO_ENTRY_DELAY 3
 
 
 class dscKeybusInterface {
@@ -49,10 +55,21 @@ class dscKeybusInterface {
     void stop();                                      // Disables the clock hardware interrupt and data timer interrupt
     void resetStatus();                               // Resets the state of all status components as changed for sketches to get the current status
 
-    // Write
-    void write(const char receivedKey);               // Writes a single key
-    void write(const char * receivedKeys);            // Writes multiple keys from a char array
+    // Writes a single key - nonblocking unless a previous write is in progress
+    void write(const char receivedKey);
+
+    // Writes multiple keys from a char array
+    //
+    // By default, this is nonblocking unless there is a previous write in progress - in this case, the sketch must keep the char
+    // array defined at least until the write is complete.
+    //
+    // If the char array is ephemeral, check if the write is complete by checking writeReady or set blockingWrite to true to
+    // block until the write is complete.
+    void write(const char * receivedKeys, bool blockingWrite = false);
+
+    // Write control
     static byte writePartition;                       // Set to a partition number for virtual keypad
+    bool writeReady;                                  // True if the library is ready to write a key
 
     // Prints output to the stream interface set in begin()
     void printPanelBinary(bool printSpaces = true);   // Includes spaces between bytes by default
@@ -73,8 +90,8 @@ class dscKeybusInterface {
     byte hour, minute, day, month;
     int year;
 
-    // Sets panel time, the year can be sent as either 2 or 4 digits
-    void setTime(unsigned int year, byte month, byte day, byte hour, byte minute, const char* accessCode);
+    // Sets panel time, the year can be sent as either 2 or 4 digits, returns true if the panel is ready to set the time
+    bool setTime(unsigned int year, byte month, byte day, byte hour, byte minute, const char* accessCode);
 
     // Status tracking
     bool statusChanged;                   // True after any status change
@@ -88,10 +105,12 @@ class dscKeybusInterface {
     bool batteryTrouble, batteryChanged;
     bool keypadFireAlarm, keypadAuxAlarm, keypadPanicAlarm;
     bool ready[dscPartitions], readyChanged[dscPartitions];
+    bool disabled[dscPartitions];
     bool armed[dscPartitions], armedAway[dscPartitions], armedStay[dscPartitions];
     bool noEntryDelay[dscPartitions], armedChanged[dscPartitions];
     bool alarm[dscPartitions], alarmChanged[dscPartitions];
     bool exitDelay[dscPartitions], exitDelayChanged[dscPartitions];
+    byte exitState[dscPartitions], exitStateChanged[dscPartitions];
     bool entryDelay[dscPartitions], entryDelayChanged[dscPartitions];
     bool fire[dscPartitions], fireChanged[dscPartitions];
     bool openZonesStatusChanged;
@@ -127,7 +146,6 @@ class dscKeybusInterface {
 
     // Deprecated
     bool handlePanel();               // Returns true if valid panel data is available.  Relabeled to loop()
-    static volatile bool writeReady;  // True if the library is ready to write a key.  To be moved to private
 
   private:
 
@@ -228,6 +246,7 @@ class dscKeybusInterface {
     byte previousLights[dscPartitions], previousStatus[dscPartitions];
     bool previousReady[dscPartitions];
     bool previousExitDelay[dscPartitions], previousEntryDelay[dscPartitions];
+    byte previousExitState[dscPartitions];
     bool previousArmed[dscPartitions], previousArmedStay[dscPartitions];
     bool previousAlarm[dscPartitions];
     bool previousFire[dscPartitions];
@@ -240,6 +259,7 @@ class dscKeybusInterface {
     static bool virtualKeypad;
     static char writeKey;
     static byte panelBitCount, panelByteCount;
+    static volatile bool writeKeyPending;
     static volatile bool writeAlarm, writeAsterisk, wroteAsterisk;
     static volatile bool moduleDataCaptured;
     static volatile unsigned long clockHighTime, keybusTime;

@@ -90,6 +90,9 @@ void loop() {
     // Checks status per partition
     for (byte partition = 0; partition < dscPartitions; partition++) {
 
+      // Skips processing if the partition is disabled or in installer programming
+      if (dsc.disabled[partition]) continue;
+
       // Checks ready status
       if (dsc.readyChanged[partition]) {
         dsc.readyChanged[partition] = false;  // Resets the partition ready status flag
@@ -97,6 +100,11 @@ void loop() {
           Serial.print(F("Partition "));
           Serial.print(partition + 1);
           Serial.println(F(" ready"));
+        }
+        else {
+          Serial.print(F("Partition "));
+          Serial.print(partition + 1);
+          Serial.println(F(" not ready"));
         }
       }
 

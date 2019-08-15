@@ -38,6 +38,8 @@
  *  Issues and (especially) pull requests are welcome:
  *  https://github.com/taligentx/dscKeybusInterface
  *
+ *  Many thanks to ColinNG for contributing this example: https://github.com/ColinNG
+ *
  *  This example code is in the public domain.
  */
 
@@ -128,6 +130,9 @@ void loop() {
 
     // Checks status per partition
     for (byte partition = 0; partition < dscPartitions; partition++) {
+
+      // Skips processing if the partition is disabled or in installer programming
+      if (dsc.disabled[partition]) continue;
 
       // Checks armed status
       if (dsc.armedChanged[partition]) {

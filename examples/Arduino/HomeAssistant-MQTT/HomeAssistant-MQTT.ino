@@ -14,13 +14,14 @@
  *    5. Restart Home Assistant.
  *
  *  Release notes
- *    1.2 - Added Keybus status for online/offline status
+ *    1.2 - Added night arm (arming with no entry delay)
+ *          Added status update on initial MQTT connection and reconnection
  *          Add appendPartition() to simplify sketch
  *          Removed writeReady check, moved into library
  *    1.1 - Added status update on initial MQTT connection and reconnection
  *    1.0 - Initial release
  *
- *  Example Home Assistant configuration.yaml:
+ *  Example Home Assistant configuration.yaml for 2 partitions, 3 zones:
 
 # https://www.home-assistant.io/components/mqtt/
 mqtt:
@@ -30,23 +31,38 @@ mqtt:
 # https://www.home-assistant.io/components/alarm_control_panel.mqtt/
 alarm_control_panel:
   - platform: mqtt
-    name: "Security System Partition 1"
+    name: "Security Partition 1"
     state_topic: "dsc/Get/Partition1"
     availability_topic: "dsc/Status"
     command_topic: "dsc/Set"
     payload_disarm: "1D"
     payload_arm_home: "1S"
     payload_arm_away: "1A"
+    payload_arm_night: "1N"
   - platform: mqtt
-    name: "Security System Partition 2"
+    name: "Security Partition 2"
     state_topic: "dsc/Get/Partition2"
     availability_topic: "dsc/Status"
     command_topic: "dsc/Set"
     payload_disarm: "2D"
     payload_arm_home: "2S"
     payload_arm_away: "2A"
+    payload_arm_night: "2N"
 
-# https://www.home-assistant.io/components/binary_sensor/
+# https://www.home-assistant.io/components/sensor.mqtt/
+sensor:
+  - platform: mqtt
+    name: "Security Partition 1"
+    state_topic: "dsc/Get/Partition1/Message"
+    availability_topic: "dsc/Status"
+    icon: "mdi:shield"
+  - platform: mqtt
+    name: "Security Partition 2"
+    state_topic: "dsc/Get/Partition2/Message"
+    availability_topic: "dsc/Status"
+    icon: "mdi:shield"
+
+# https://www.home-assistant.io/components/binary_sensor.mqtt/
 binary_sensor:
   - platform: mqtt
     name: "Security Trouble"
@@ -89,12 +105,14 @@ binary_sensor:
  *    Partition 1 disarm: "1D"
  *    Partition 2 arm stay: "2S"
  *    Partition 2 arm away: "2A"
+ *    Partition 1 arm night: "1N"
  *
  *  The interface listens for commands in the configured mqttSubscribeTopic, and publishes partition status in a
  *  separate topic per partition with the configured mqttPartitionTopic appended with the partition number:
  *    Disarmed: "disarmed"
  *    Arm stay: "armed_home"
  *    Arm away: "armed_away"
+ *    Arm night: "armed_night"
  *    Exit delay in progress: "pending"
  *    Alarm tripped: "triggered"
  *
@@ -160,7 +178,7 @@ const char* mqttPartitionTopic = "dsc/Get/Partition";  // Sends armed and alarm 
 const char* mqttZoneTopic = "dsc/Get/Zone";            // Sends zone status per zone: dsc/Get/Zone1 ... dsc/Get/Zone64
 const char* mqttFireTopic = "dsc/Get/Fire";            // Sends fire status per partition: dsc/Get/Fire1 ... dsc/Get/Fire8
 const char* mqttTroubleTopic = "dsc/Get/Trouble";      // Sends trouble status
-const char* mqttStatusTopic = "dsc/Status";
+const char* mqttStatusTopic = "dsc/Status";            // Sends online/offline status
 const char* mqttBirthMessage = "online";
 const char* mqttLwtMessage = "offline";
 const char* mqttSubscribeTopic = "dsc/Set";            // Receives messages to write to the panel
@@ -242,34 +260,39 @@ void loop() {
     // Publishes status per partition
     for (byte partition = 0; partition < dscPartitions; partition++) {
 
+      // Skips processing if the partition is disabled or in installer programming
+      if (dsc.disabled[partition]) continue;
+
+      // Publishes armed/disarmed status
+      if (dsc.armedChanged[partition]) {
+        dsc.armedChanged[partition] = false;  // Resets the partition armed status flag
+        char publishTopic[strlen(mqttPartitionTopic) + 2];
+        appendPartition(mqttPartitionTopic, partition, publishTopic);  // Appends the mqttPartitionTopic with the partition number
+
+        if (dsc.armed[partition]) {
+          if (dsc.armedAway[partition] && dsc.noEntryDelay[partition]) mqtt.publish(publishTopic, "armed_night", true);
+          else if (dsc.armedAway[partition]) mqtt.publish(publishTopic, "armed_away", true);
+          else if (dsc.armedStay[partition] && dsc.noEntryDelay[partition]) mqtt.publish(publishTopic, "armed_night", true);
+          else if (dsc.armedStay[partition]) mqtt.publish(publishTopic, "armed_home", true);
+        }
+        else mqtt.publish(publishTopic, "disarmed", true);
+      }
+
       // Publishes exit delay status
       if (dsc.exitDelayChanged[partition]) {
         dsc.exitDelayChanged[partition] = false;  // Resets the exit delay status flag
-        char publishTopic[strlen(mqttPartitionTopic) + 1];
+        char publishTopic[strlen(mqttPartitionTopic) + 2];
         appendPartition(mqttPartitionTopic, partition, publishTopic);  // Appends the mqttPartitionTopic with the partition number
 
         if (dsc.exitDelay[partition]) mqtt.publish(publishTopic, "pending", true);  // Publish as a retained message
         else if (!dsc.exitDelay[partition] && !dsc.armed[partition]) mqtt.publish(publishTopic, "disarmed", true);
       }
 
-      // Publishes armed/disarmed status
-      if (dsc.armedChanged[partition]) {
-        dsc.armedChanged[partition] = false;  // Resets the partition armed status flag
-        char publishTopic[strlen(mqttPartitionTopic) + 1];
-        appendPartition(mqttPartitionTopic, partition, publishTopic);  // Appends the mqttPartitionTopic with the partition number
-
-        if (dsc.armed[partition]) {
-          if (dsc.armedAway[partition]) mqtt.publish(publishTopic, "armed_away", true);
-          else if (dsc.armedStay[partition]) mqtt.publish(publishTopic, "armed_home", true);
-        }
-        else mqtt.publish(publishTopic, "disarmed", true);
-      }
-
       // Publishes alarm status
       if (dsc.alarmChanged[partition]) {
         dsc.alarmChanged[partition] = false;  // Resets the partition alarm status flag
         if (dsc.alarm[partition]) {
-          char publishTopic[strlen(mqttPartitionTopic) + 1];
+          char publishTopic[strlen(mqttPartitionTopic) + 2];
           appendPartition(mqttPartitionTopic, partition, publishTopic);  // Appends the mqttPartitionTopic with the partition number
 
           mqtt.publish(publishTopic, "triggered", true);  // Alarm tripped
@@ -279,7 +302,7 @@ void loop() {
       // Publishes fire alarm status
       if (dsc.fireChanged[partition]) {
         dsc.fireChanged[partition] = false;  // Resets the fire status flag
-        char publishTopic[strlen(mqttFireTopic) + 1];
+        char publishTopic[strlen(mqttFireTopic) + 2];
         appendPartition(mqttFireTopic, partition, publishTopic);  // Appends the mqttFireTopic with the partition number
 
         if (dsc.fire[partition]) mqtt.publish(publishTopic, "1");  // Fire alarm tripped
@@ -301,7 +324,7 @@ void loop() {
             bitWrite(dsc.openZonesChanged[zoneGroup], zoneBit, 0);  // Resets the individual open zone status flag
 
             // Appends the mqttZoneTopic with the zone number
-            char zonePublishTopic[strlen(mqttZoneTopic) + 2];
+            char zonePublishTopic[strlen(mqttZoneTopic) + 3];
             char zone[3];
             strcpy(zonePublishTopic, mqttZoneTopic);
             itoa(zoneBit + 1 + (zoneGroup * 8), zone, 10);
@@ -337,6 +360,13 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
     payloadIndex = 1;
   }
 
+  // Resets status if attempting to change the armed mode while armed or not ready
+  if (payload[payloadIndex] != 'D' && !dsc.ready[partition]) {
+    dsc.armedChanged[partition] = true;
+    dsc.statusChanged = true;
+    return;
+  }
+
   // Arm stay
   if (payload[payloadIndex] == 'S' && !dsc.armed[partition] && !dsc.exitDelay[partition]) {
     dsc.writePartition = partition + 1;         // Sets writes to the partition number
@@ -347,6 +377,12 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
   else if (payload[payloadIndex] == 'A' && !dsc.armed[partition] && !dsc.exitDelay[partition]) {
     dsc.writePartition = partition + 1;         // Sets writes to the partition number
     dsc.write('w');                             // Virtual keypad arm away
+  }
+
+  // Arm night
+  else if (payload[payloadIndex] == 'N' && !dsc.armed[partition] && !dsc.exitDelay[partition]) {
+    dsc.writePartition = partition + 1;         // Sets writes to the partition number
+    dsc.write('n');                             // Virtual keypad arm away
   }
 
   // Disarm

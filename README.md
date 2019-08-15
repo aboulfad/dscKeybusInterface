@@ -6,17 +6,19 @@ The built-in examples can be used as-is or as a base to adapt to other uses:
 * Notifications: [PushBullet](https://www.pushbullet.com), [Twilio SMS](https://www.twilio.com), MQTT, E-mail
 * Virtual keypad: Web interface, [Blynk](https://www.blynk.cc) mobile app, installer code unlocking
 
-This library has also been ported to [esp-open-rtos](https://github.com/SuperHouse/esp-open-rtos) - this enables native esp8266 integration with [Apple HomeKit & Siri](https://www.apple.com/ios/home/) as a standalone accessory using [esp-homekit](https://github.com/maximkulkin/esp-homekit) - see the [dscKeybusInterface-RTOS](https://github.com/taligentx/dscKeybusInterface-RTOS) repository for details.
+See the [dscKeybusInterface-RTOS](https://github.com/taligentx/dscKeybusInterface-RTOS) repository for a port of this library to [esp-open-rtos](https://github.com/SuperHouse/esp-open-rtos) - this enables a standalone esp8266 HomeKit accessory using [esp-homekit](https://github.com/maximkulkin/esp-homekit).
 
 Screenshots:
 * [Apple Home & Siri](https://www.apple.com/ios/home/):  
-  ![HomeKit](https://user-images.githubusercontent.com/12835671/39588413-5a99099a-4ec1-11e8-9a2e-e332fa2d6379.jpg)
+  ![HomeKit](https://user-images.githubusercontent.com/12835671/61570833-c9bb9780-aa54-11e9-9477-8e0853609e91.png)
 * [Home Assistant](https://www.home-assistant.io):  
-  ![HomeAssistant](https://user-images.githubusercontent.com/12835671/42108879-7362ccf6-7ba1-11e8-902e-d6cb25483a00.png)
+  ![HomeAssistant](https://user-images.githubusercontent.com/12835671/61985900-38f33780-afd1-11e9-9d43-ab0b681b7b03.png)
+* [OpenHAB](https://www.openhab.org):  
+  ![OpenHAB](https://user-images.githubusercontent.com/12835671/61560425-daa6e180-aa31-11e9-9efe-0fcb44d2106a.png)
 * [Blynk](https://www.blynk.cc) app virtual keypad:  
-  ![dsc-blynk](https://user-images.githubusercontent.com/12835671/42364975-add27c94-80c2-11e8-8a55-9d6d168ff8c1.png)
+  ![VirtualKeypad-Blynk](https://user-images.githubusercontent.com/12835671/61568638-9fb0a800-aa49-11e9-94d0-e598431ea2ed.png)
 * Web virtual keypad:  
-  ![dsc-web](https://user-images.githubusercontent.com/12835671/57727601-8cebb280-7657-11e9-9404-dbdaeed9adae.png)
+  ![VirtualKeypad-Web](https://user-images.githubusercontent.com/12835671/61570049-e43f4200-aa4f-11e9-96bc-3448b6630990.png)
 
 ## Why?
 **I Had**: _A DSC security system not being monitored by a third-party service._  
@@ -24,13 +26,13 @@ Screenshots:
 
 I was interested in finding a solution that directly accessed the pair of data lines that DSC uses for their proprietary Keybus protocol to send data between the panel, keypads, and other modules.  Tapping into the data lines is an ideal task for a microcontroller and also presented an opportunity to work with the [Arduino](https://www.arduino.cc) and [FreeRTOS](https://www.freertos.org) (via [esp-open-rtos](https://github.com/SuperHouse/esp-open-rtos)) platforms.
 
-While there has been excellent [discussion about the DSC Keybus protocol](https://www.avrfreaks.net/forum/dsc-keybus-protocol) and a few existing projects, there were major issues that remained unsolved:
+While there has been excellent [discussion about the DSC Keybus protocol](https://www.avrfreaks.net/forum/dsc-keybus-protocol) and a several existing projects, there were a few issues that remained unsolved:
 * Error-prone Keybus data capture.
 * Limited data decoding - there was good progress for armed/disarmed states and partial zone status for a single partition, but otherwise most of the data was undecoded (notably missing the alarm triggered state).
 * Read-only - unable to control the Keybus to act as a virtual keypad.
 * No implementations to do useful work with the data.
 
-Poking around with a logic analyzer and oscilloscope revealed that the errors capturing the Keybus data were timing issues.  Updating the existing projects to fix this turned out to be more troublesome than starting from scratch, so this project was born.  After resolving the data errors, it was possible to reverse engineer the protocol by capturing the Keybus binary data as the security system handled various events.  At this point, this interface resolves all of the earlier issues (and goes beyond my initial goal of simply seeing if the alarm is triggered).
+Poking around with a logic analyzer and oscilloscope revealed that the errors capturing the Keybus data were timing issues - after resolving the data errors, it was possible to reverse engineer the protocol by capturing the Keybus binary data as the security system handled various events.
 
 ## Features
 * Monitor the alarm state of all partitions:
@@ -38,11 +40,11 @@ Poking around with a logic analyzer and oscilloscope revealed that the errors ca
 * Monitor zones status:
   - Zones open/closed, zones in alarm
 * Monitor system status:
-  - Ready, trouble, time, AC power, battery
-* Panel time - retrieve current panel date/time and set a new date/time
-* Panel installer code unlocking - finds a valid 4-digit installer code
+  - Ready, trouble, AC power, battery
 * Virtual keypad:
-  - Send keys to the panel for any partition
+  - Write keys to the panel for all partitions
+* Panel time - retrieve current panel date/time and set a new date/time
+* Panel installer code unlocking - determine the 4-digit panel installer code
 * Direct Keybus interface:
   - Does not require the [DSC IT-100 serial interface](https://www.dsc.com/alarm-security-products/IT-100%20-%20PowerSeries%20Integration%20Module/22).
 * Supported security systems:
@@ -57,7 +59,7 @@ Poking around with a logic analyzer and oscilloscope revealed that the errors ca
     - esp8266:
       * Development boards: NodeMCU v2 or v3, Wemos D1 Mini, etc.
       * Includes [Arduino framework support](https://github.com/esp8266/Arduino) and WiFi for ~$3USD shipped.
-    - esp32 (experimental support):
+    - esp32:
       * Development boards: NodeMCU ESP-32S, Doit ESP32 Devkit v1, Wemos Lolin D32, etc.
       * Includes [Arduino framework support](https://github.com/espressif/arduino-esp32), dual cores, WiFi, and Bluetooth for ~$5USD shipped.
 * Designed for reliable data decoding and performance:
@@ -66,32 +68,38 @@ Poking around with a logic analyzer and oscilloscope revealed that the errors ca
   - Extensive data decoding: the majority of Keybus data as seen in the [DSC IT-100 Data Interface developer's guide](https://cms.dsc.com/download.php?t=1&id=16238) has been reverse engineered and documented in [`src/dscKeybusPrintData.cpp`](https://github.com/taligentx/dscKeybusInterface/blob/master/src/dscKeybusPrintData.cpp).
   - Non-blocking code: Allows sketches to run as quickly as possible without using `delay` or `delayMicroseconds`
 * Unsupported security systems:
-  - DSC Classic series ([PC1500, etc](https://www.dsc.com/?n=enduser&o=identify)) use a different data protocol, though support is possible.
+  - DSC Classic series ([PC1500, PC1550, etc](https://www.dsc.com/?n=enduser&o=identify)) use a different data protocol, though support is possible.
   - DSC Neo series use a higher speed encrypted data protocol (Corbus) that is not currently possible to support.
   - Honeywell, Ademco, and other brands (that are not rebranded DSC systems) use different protocols and are not supported.
 * Possible features (PRs welcome!):
   - Virtual zone expander: Add new zones to the DSC panel emulated by the microcontroller based on GPIO pin states or software-based states.  Requires decoding the DSC PC5108 zone expander data.
   - [DSC IT-100](https://cms.dsc.com/download.php?t=1&id=16238) emulation
+  - Unlock 6-digit installer codes
   - DSC Classic series support: This protocol is [already decoded](https://github.com/dougkpowers/pc1550-interface), use with this library would require major changes.
 
 ## Release notes
 * develop
   - New: [OpenHAB](https://www.openhab.org) integration example sketch using MQTT
-  - New: `Unlocker` example sketch to determine the panel installer code
-  - New: esp32 microcontroller support (experimental)
-  - New: Added functionality for sketches, updated example sketches
-      * `ready` tracks partition ready status
+  - New: `Unlocker` example sketch - determines the panel installer code
+  - New: `KeybusReaderIP` example sketch enables Keybus data access over IP, thanks to [aboulfad](https://github.com/aboulfad) for this contribution!
+  - New: esp32 microcontroller support
+  - New: Features for sketches:
+      * `ready` and `disabled` track partition status
       * `setTime()` sets the panel date and time
       * `timestampChanged` tracks when the panel sends a timestamp
       * `accessCode` tracks the access code used to arm/disarm
       * `resetStatus()` triggers a full status update of all partitions and zones - for example, after initialization or a lost network connection.
-      * `pauseStatus` pauses status updates if set to `true` - for example, holding status changes during a lost network connection.
-      * `stop()` disables the interface - for example, prior to starting OTA updates.
+      * `pauseStatus` pauses status updates if set to `true` - for example, holding status changes during a lost network connection
+      * `stop()` disables the interface - for example, prior to starting OTA updates
       * `appendPartition()` in example sketches simplifies adding partition numbers to messages
   - New: Handle `*1 bypass/re-activate` used to change stay/away mode while armed
+  - Updated: Virtual keypad writes
+      * `write()` for multiple keys can now be set to block until the write is complete with an optional parameter if the char array is ephemeral
+      * Checking `writeReady` is typically no longer needed in the sketch, the library will block if a previous write is in progress - this can be checked if the sketch needs to wait until the library can perform a nonblocking write
+  - Updated: `HomeAssistant-MQTT` sketch now includes night arm and for esp8266/esp32 includes a sensor with partition status messages
   - Updated: Expanded partition state processing to improve panel state detection at startup
   - Deprecated: `handlePanel()` is now `loop()`
-  - Deprecated: `writeReady` has been moved into the library and is no longer needed in the sketch.
+  - Bugfix: Resolved keypad aux/panic key, AC power, and battery status on PC585/PC1555MX
   - Bugfix: Resolved `Homebridge-MQTT` sketch not handling HomeKit target states
   - Bugfix: Resolved timing issues when consecutively calling `write`
 * 1.2
@@ -156,18 +164,20 @@ The included examples demonstrate how to use the library and can be used as-is o
   * Partitions fire alarm
   * Zones open/closed
   * Zones in alarm
-  * Get/set panel date and time
   * Keypad fire/auxiliary/panic alarm
+  * Get/set panel date and time
+  * User access code number (1-40)
   * Panel AC power
   * Panel battery
   * Panel trouble
   * Keybus connected
 
 * **Homebridge-MQTT**: Integrates with Apple HomeKit, including the iOS Home app and Siri.  This uses MQTT to interface with [Homebridge](https://github.com/nfarina/homebridge) and [homebridge-mqttthing](https://github.com/arachnetech/homebridge-mqttthing) and demonstrates using the armed and alarm states for the HomeKit securitySystem object, zone states for the contactSensor objects, and fire alarm states for the smokeSensor object.
+    - The [dscKeybusInterface-RTOS](https://github.com/taligentx/dscKeybusInterface-RTOS) library includes a native HomeKit implementation that runs directly on esp8266, without requiring a separate device running MQTT or Homebridge.
 
-* **HomeAssistant-MQTT**: Integrates with [Home Assistant](https://www.home-assistant.io) via MQTT.  This uses the armed and alarm states for the HomeAssistant [Alarm Control Panel](https://www.home-assistant.io/components/alarm_control_panel.mqtt) component, as well as zone, fire alarm, and trouble states for the [Binary Sensor](https://www.home-assistant.io/components/binary_sensor.mqtt) component.
+* **HomeAssistant-MQTT**: Integrates with [Home Assistant](https://www.home-assistant.io) via MQTT.  This uses the armed and alarm states for the HomeAssistant [Alarm Control Panel](https://www.home-assistant.io/components/alarm_control_panel.mqtt) component, as well as zone, fire alarm, and trouble states for the [Binary Sensor](https://www.home-assistant.io/components/binary_sensor.mqtt) component.  For esp8266/esp32, a partition status message is also sent as a sensor component.
 
-* **OpenHAB-MQTT**: Integrates with [OpenHAB](https://www.openhab.org) via MQTT.  This uses MQTT to interface with OpenHAB and the [MQTT binding](https://www.openhab.org/addons/bindings/mqtt/) and demonstrates using the armed states as OpenHAB switches, and the alarm and zones states as OpenHAB contacts.  Also see https://github.com/jimtng/dscalarm-mqtt for an integration using the Homie convention for OpenHAB's Homie MQTT component.
+* **OpenHAB-MQTT**: Integrates with [OpenHAB](https://www.openhab.org) via MQTT.  This uses the [OpenHAB MQTT binding](https://www.openhab.org/addons/bindings/mqtt/) and demonstrates using the panel and partitions states as OpenHAB switches and zone states as OpenHAB contacts.  For esp8266/esp32, a panel status message is also sent as a string to OpenHAB.  See https://github.com/jimtng/dscalarm-mqtt for an integration using the Homie convention for OpenHAB's Homie MQTT component.
 
 * **Homey**: Integrates with [Athom Homey](https://www.athom.com/en/) and the [Homeyduino](https://github.com/athombv/homey-arduino-library/) library, including armed, alarm, and fire states (currently limited to one partition), and zone states.  Thanks to [MagnusPer](https://github.com/MagnusPer) for contributing this example!
 
@@ -193,7 +203,7 @@ The included examples demonstrate how to use the library and can be used as-is o
 
 * **Unlocker**: Checks all possible 4-digit installer codes until a valid code is found, including handling keypad lockout if enabled.  The valid code is output to serial as well as repeatedly flashed with the built-in LED.
 
-* **KeybusReader**: Decodes and prints data from the Keybus to a serial interface, including reading from serial for the virtual keypad.  This can be used to help decode the Keybus protocol and is also handy as a troubleshooting tool to verify that data is displayed without errors.
+* **KeybusReader**: Decodes and prints data from the Keybus to a serial interface, including reading from serial for the virtual keypad.  This can be used to help decode the Keybus protocol and is also handy as a troubleshooting tool to verify that data is displayed without errors.  For esp8266/esp32, `KeybusReaderIP` enables connectivity over WiFi.
 
   See [`src/dscKeybusPrintData.cpp`](https://github.com/taligentx/dscKeybusInterface/blob/master/src/dscKeybusPrintData.cpp) for all currently known Keybus protocol commands and messages.  Issues and pull requests with additions/corrections are welcome!
 
@@ -273,11 +283,11 @@ Keys are sent to partition 1 by default and can be changed to a different partit
 * Command output 4: `}`
 
 ## DSC Configuration
-Panel options affecting this interface, configured by `*8 + installer code` - see the DSC installation manual for your panel for configuration steps:
-* PC1555MX/5015 section 370, PC1616/PC1832/PC1864 section 377:
+Panel options affecting this interface, configured by `*8 + installer code` - see the `Unlocker` sketch if your panel's installer code is unknown.  Refer to the DSC installation manual for your panel to configure these options:
+* PC1555MX/5015 section `370`, PC1616/PC1832/PC1864 section `377`:
   - Swinger shutdown: By default, the panel will limit the number of alarm commands sent in a single armed cycle to 3 - for example, a zone alarm being triggered multiple times will stop reporting after 3 alerts.  This is to avoid sending alerts repeatedly to a third-party monitoring service, and also affects this interface.  As I do not use a monitoring service, I disable swinger shutdown by setting this to `000`.
 
-  - AC power failure reporting delay: The default delay is 30 minutes and can be set to 000 to immediately report a power failure.  
+  - AC power failure reporting delay: The default delay is 30 minutes and can be set to `000` to immediately report a power failure.  
 
 ## Notes
 * For OTA updates on esp8266 and esp32, you may need to stop the interface using `dsc.stop();`:
@@ -294,15 +304,15 @@ Panel options affecting this interface, configured by `*8 + installer code` - se
 
 * PCB layouts are available in [`extras/PCB Layouts`](https://github.com/taligentx/dscKeybusInterface/tree/master/extras/PCB%20Layouts) - thanks to [sjlouw](https://github.com/sj-louw) for contributing these designs!
 
-* Support for other platforms depends on adjusting the code to use their platform-specific timers.  In addition to hardware interrupts to capture the DSC clock, this library uses platform-specific timer interrupts to capture the DSC data line in a non-blocking way 250μs after the clock changes (without using `delayMicroseconds()`).  This is necessary because the clock and data are asynchronous - I've observed keypad data delayed up to 160us after the clock falls.
+* Support for other platforms depends on adjusting the code to use their platform-specific timers.  In addition to hardware interrupts to capture the DSC clock, this library uses platform-specific timer interrupts to capture the DSC data line in a non-blocking way 250μs after the clock changes (without using `delayMicroseconds()`).  This is necessary because the clock and data are asynchronous - I've observed keypad data delayed up to 160μs after the clock falls.
 
 ## Troubleshooting
 If you are running into issues:
-1. Run the KeybusReader example sketch and view the serial output to verify that the interface is capturing data successfully without reporting CRC errors.  
+1. Run the `KeybusReader` example sketch and view the serial output to verify that the interface is capturing data successfully without reporting CRC errors.  
     * If data is not showing up or has errors, check the clock and data line wiring, resistors, and all connections.
-2. For virtual keypad, run the KeybusReader example sketch and enter keys through serial and verify that the keys appear in the output and that the panel responds.  
+2. For virtual keypad, run the `KeybusReader` example sketch and enter keys through serial and verify that the keys appear in the output and that the panel responds.  
     * If keys are not displayed in the output, verify the transistor pinout, base resistor, and wiring connections.
-3. Run the Status example sketch and view the serial output to verify that the interface displays events from the security system correctly as partitions are armed, zones opened, etc.
+3. Run the `Status` example sketch and view the serial output to verify that the interface displays events from the security system correctly as partitions are armed, zones opened, etc.
 
 ## References
 [AVR Freaks - DSC Keybus Protocol](https://www.avrfreaks.net/forum/dsc-keybus-protocol): An excellent discussion on how data is sent on the Keybus.

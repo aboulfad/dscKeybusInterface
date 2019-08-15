@@ -233,6 +233,9 @@ void loop() {
     // Publishes status per partition
     for (byte partition = 0; partition < dscPartitions; partition++) {
 
+      // Skips processing if the partition is disabled or in installer programming
+      if (dsc.disabled[partition]) continue;
+
       // Publishes armed/disarmed status
       if (dsc.armedChanged[partition]) {
         dsc.armedChanged[partition] = false;  // Resets the partition armed status flag
@@ -272,10 +275,26 @@ void loop() {
         // Exit delay in progress
         if (dsc.exitDelay[partition]) {
 
-          // Sets default target state to away if the panel is armed externally
-          if (exitState == 0) {
-            exitState = 'A';
-            publishState(mqttPartitionTopic, partition, "A", 0);
+          // Sets the arming target state if the panel is armed externally
+          if (exitState == 0 || dsc.exitStateChanged[partition]) {
+            dsc.exitStateChanged[partition] = 0;
+            switch (dsc.exitState[partition]) {
+              case DSC_EXIT_STAY: {
+                exitState = 'S';
+                publishState(mqttPartitionTopic, partition, "S", 0);
+                break;
+              }
+              case DSC_EXIT_AWAY: {
+                exitState = 'A';
+                publishState(mqttPartitionTopic, partition, "A", 0);
+                break;
+              }
+              case DSC_EXIT_NO_ENTRY_DELAY: {
+                exitState = 'N';
+                publishState(mqttPartitionTopic, partition, "N", 0);
+                break;
+              }
+            }
           }
         }
 
@@ -321,7 +340,7 @@ void loop() {
             bitWrite(dsc.openZonesChanged[zoneGroup], zoneBit, 0);  // Resets the individual open zone status flag
 
             // Appends the mqttZoneTopic with the zone number
-            char zonePublishTopic[strlen(mqttZoneTopic) + 2];
+            char zonePublishTopic[strlen(mqttZoneTopic) + 3];
             char zone[3];
             strcpy(zonePublishTopic, mqttZoneTopic);
             itoa(zoneBit + 1 + (zoneGroup * 8), zone, 10);
@@ -440,7 +459,7 @@ bool mqttConnect() {
 
 // Publishes HomeKit target and current states with partition numbers
 void publishState(const char* sourceTopic, byte partition, const char* targetSuffix, const char* currentState) {
-  char publishTopic[strlen(sourceTopic) + 1];
+  char publishTopic[strlen(sourceTopic) + 2];
   char partitionNumber[2];
 
   // Appends the sourceTopic with the partition number
@@ -451,7 +470,7 @@ void publishState(const char* sourceTopic, byte partition, const char* targetSuf
   if (targetSuffix != 0) {
 
     // Prepends the targetSuffix with the partition number
-    char targetState[strlen(targetSuffix) + 1];
+    char targetState[strlen(targetSuffix) + 2];
     strcpy(targetState, partitionNumber);
     strcat(targetState, targetSuffix);
 
